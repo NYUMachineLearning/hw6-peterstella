@@ -1,0 +1,203 @@
+---
+title: "Support Vector Machines(SVMs) Tutorial"
+author: "Peter Stella"
+date: "11/12/2019"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Support Vector Machines(SVMs)
+
+A Support Vector Machine (SVM) is a discriminative classifier formally defined by a separating hyperplane. Given labeled training data, the algorithm outputs an optimal hyperplane which categorizes new examples.
+
+```{r load relevant libraries, include=FALSE}
+library(tidyverse)
+library(mlbench)
+library(caret)
+library(pROC)
+library(randomForest)
+```
+
+## The Breast Cancer Dataset
+699 Observations, 11 variables
+Predictor Variable: Class--benign or malignant 
+
+```{r}
+data(BreastCancer)
+
+#bc = BreastCancer %>% 
+#  mutate_if(is.character, as.numeric)
+#bc[is.na(bc)] = 0
+
+BreastCancer_num = transform(BreastCancer, Id = as.numeric(Id), 
+                         Cl.thickness = as.numeric(Cl.thickness),
+                         Cell.size = as.numeric(Cell.size),
+                         Cell.shape = as.numeric(Cell.shape), 
+                         Marg.adhesion = as.numeric(Marg.adhesion),
+                         Epith.c.size = as.numeric(Epith.c.size),
+                         Bare.nuclei = as.numeric(Bare.nuclei), 
+                         Bl.cromatin = as.numeric(Bl.cromatin), 
+                         Normal.nucleoli = as.numeric(Normal.nucleoli),
+                         Mitoses = as.numeric(Mitoses))
+
+BreastCancer_num[is.na(BreastCancer_num)] = 0
+
+train_size = floor(0.75 * nrow(BreastCancer_num))
+train_pos <- sample(seq_len(nrow(BreastCancer_num)), size = train_size)
+
+train_classification <- BreastCancer_num[train_pos, ]
+test_classification <- BreastCancer_num[-train_pos, ]
+
+```
+
+##SVM 
+
+```{r}
+set.seed(1112)
+control = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+
+svm = train(Class ~ Id + Cl.thickness + Cell.size + Cell.shape + Marg.adhesion + Epith.c.size + Bare.nuclei + Bl.cromatin + Normal.nucleoli +  Mitoses,  data = train_classification, method = "svmLinear", tuneLength = 10, trControl = control)
+
+svm
+```
+##Receiver operating characteristic(ROC) curve
+
+```{r}
+roc(predictor = svm$pred$malignant, response = svm$pred$obs)$auc
+
+plot(x = roc(predictor = svm$pred$malignant, response = svm$pred$obs)$specificities, y = roc(predictor = svm$pred$malignant, response = svm$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+```
+## Test Set 
+
+```{r}
+svm_test = predict(svm, newdata = test_classification)
+confusionMatrix(svm_test, reference = test_classification$Class)
+```
+## SVM with a radial kernel 
+
+
+
+##Receiver operating characteristic(ROC) curve
+
+```{r}
+roc(predictor = svm$pred$malignant, response = svm$pred$obs)$auc
+
+plot(x = roc(predictor = svm$pred$malignant, response = svm$pred$obs)$specificities, y = roc(predictor = svm$pred$malignant, response = svm$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+```
+
+## Test Set 
+
+```{r}
+svm_test = predict(svm, newdata = test_classification)
+confusionMatrix(svm_test, reference = test_classification$Class)
+```
+
+##Homework
+
+1. Choose an appropriate machine learning dataset and use SVM with two different kernels. Campare the results. 
+
+Will use the PIMA diabetes dataset since it has a binary classific
+
+```{r}
+data("PimaIndiansDiabetes2")
+```
+
+Use Caret to subset data
+```{r}
+set.seed(123)
+trainIndex <- createDataPartition(PimaIndiansDiabetes2$diabetes, p = 0.7, list = FALSE, times = 1)
+pima_train <- PimaIndiansDiabetes2[trainIndex,]
+pima_test <- PimaIndiansDiabetes2[-trainIndex,]
+pima_train <- pima_train %>% mutate_all(~replace(., is.na(.), 0)) 
+pima_test <- pima_test %>% mutate_all(~replace(., is.na(.), 0))
+```
+I'm not sure about this error, but neither set contains NA avfter removal: 
+```{r}
+anyNA(pima_train)
+anyNA(pima_test)
+```
+First for a radial kernal, then a linear kernal
+```{r}
+
+control = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+pima_svm = train(diabetes ~ .,  data =pima_train, method = "svmRadial", tuneLength = 10, trControl = control)
+pima_svm
+```
+
+```{r}
+
+pima_svm_l = train(diabetes ~ .,  data =pima_train, method = "svmLinear", tuneLength = 10, trControl = control)
+pima_svm_l
+```
+
+ROC/plots for training data: 
+
+
+```{r}
+roc_svm <- roc(predictor = pima_svm$pred$pos, response = pima_svm$pred$obs)
+roc_svm$auc
+roc_svm_l <- roc(predictor = pima_svm_l$pred$pos, response = pima_svm_l$pred$obs)
+roc_svm_l$auc
+plot(x = roc(predictor = pima_svm$pred$pos, response = pima_svm$pred$obs)$specificities, y = roc(predictor = pima_svm$pred$pos, response = pima_svm$pred$obs)$sensitivities, main = "Radial SVM", col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+plot(x = roc(predictor = pima_svm_l$pred$pos, response = pima_svm_l$pred$obs)$specificities, y = roc(predictor = pima_svm_l$pred$pos, response = pima_svm_l$pred$obs)$sensitivities, main = "Linear SVM", col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+```
+
+
+Test performance: 
+
+
+```{r}
+test_radial = predict(pima_svm, newdata = pima_test)
+confusionMatrix(test_radial, reference = pima_test$diabetes)
+```
+
+
+```{r}
+test_linear = predict(pima_svm_l, newdata = pima_test)
+confusionMatrix(test_linear, reference = pima_test$diabetes)
+```
+
+
+2. Attempt using SVM after using a previously covered feature selection method. Do the results improve? Explain. 
+
+
+We will use random forest to identify the most important three features and the use them in SVM. 
+
+```{r}
+control_rf <- trainControl(method="repeatedcv", number = 5, repeats = 5, classProbs = T, savePredictions = T)
+rf_pima <- train(diabetes~., data= pima_train, method = "rf", trControl = control_rf)
+```
+
+```{r}
+rf_pima_fm <- rf_pima$finalModel
+pima_imp <- varImp(rf_pima, scale = FALSE)
+pima_imp <- pima_imp$importance
+pima_imp <- pima_imp %>% rownames_to_column("feature") %>% arrange(desc(Overall))
+```
+
+This gives us glucose, mass, and age as our most powerful features. We will re-run our SVM (using a linear kernal since it performed better) with these three features. 
+
+
+```{r}
+control_feat = trainControl(method = "repeatedcv", number = 10, repeats = 5, classProbs = T, savePredictions = T)
+pima_feat_l = train(diabetes ~ glucose + mass + age,  data =pima_train, method = "svmLinear", tuneLength = 10, trControl = control_feat)
+pima_feat_l
+```
+```{r}
+roc_svm_feat <- roc(predictor = pima_feat_l$pred$pos, response = pima_feat_l$pred$obs)
+roc_svm_l$auc
+plot(x = roc(predictor = pima_feat_l$pred$pos, response = pima_feat_l$pred$obs)$specificities, y = roc(predictor = pima_feat_l$pred$pos, response = pima_feat_l$pred$obs)$sensitivities, main = "Feature Selected Linear SVM", col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+```
+
+```{r}
+
+test_feat = predict(pima_feat_l, newdata = pima_test)
+confusionMatrix(test_linear, reference = pima_test$diabetes)
+```
+
+Interestingly, this performace is identical to that found in our linear kernal example using all the features, suggesting that our regularization parameter (c =1) has likely done essentially the same feature selection that we have done here. 
